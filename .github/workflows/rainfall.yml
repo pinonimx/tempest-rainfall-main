@@ -1,0 +1,35 @@
+name: Daily Rainfall
+
+on:
+  schedule:
+    # Runs every day at 06:00 US Central Time
+    - cron: '0 11 * * *' # UTC 11:00 = 06:00 CDT/CST
+  workflow_dispatch: # Allows manual runs too
+
+jobs:
+  rainfall:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip requests pytz
+
+      - name: Run rainfall logger
+        env:
+          TEMPEST_API_TOKEN: ${{ secrets.TEMPEST_API_TOKEN }}
+          TEMPEST_STATION_ID: ${{ secrets.TEMPEST_STATION_ID }}
+        run: python rainfall_logger.py
+
+      - name: Commit & push updated CSV if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"

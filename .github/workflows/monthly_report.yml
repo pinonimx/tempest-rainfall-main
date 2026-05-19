@@ -1,0 +1,35 @@
+name: Monthly Rainfall Report
+
+on:
+  schedule:
+    # Runs on every Monday that falls on the 1st–7th of the month
+    # = first Monday of the month, 07:00 AM Central (UTC 12:00 / 13:00 depending on DST)
+    # Using 12:00 UTC covers both CDT (UTC-5) and CST (UTC-6): lands at 7 AM or 6 AM
+    - cron: '0 12 1-7 * 1'
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sendgrid pytz
+
+      - name: Send monthly rainfall report
+        env:
+          SENDGRID_API_KEY:   ${{ secrets.SENDGRID_API_KEY }}
+          REPORT_FROM_EMAIL:  ${{ secrets.REPORT_FROM_EMAIL }}
+          REPORT_FROM_NAME:   ${{ secrets.REPORT_FROM_NAME }}
+          REPORT_RECIPIENTS:  ${{ secrets.REPORT_RECIPIENTS }}
+        run: python monthly_report.py
