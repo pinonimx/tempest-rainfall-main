@@ -45,6 +45,24 @@ if not obs_data:
     print("WARNING: No observations returned. Check API token and station ID.")
     raise SystemExit(1)
 
+# --- Debug: print first observation to verify field layout ---
+first_obs = obs_data[0]
+print(f"DEBUG first obs type: {type(first_obs).__name__}")
+print(f"DEBUG first obs: {first_obs}")
+if isinstance(first_obs, (list, tuple)):
+    for i, val in enumerate(first_obs):
+        print(f"  [{i}] = {val}")
+
+# --- Debug: print any obs where index 12 or 18/19 is non-zero ---
+nonzero_found = False
+for obs in obs_data[:500]:
+    if isinstance(obs, (list, tuple)) and len(obs) > 19:
+        if (obs[12] and obs[12] > 0) or (obs[18] and obs[18] > 0) or (obs[19] and obs[19] > 0):
+            print(f"DEBUG non-zero precip obs: idx12={obs[12]} idx18={obs[18]} idx19={obs[19]} ts={obs[0]}")
+            nonzero_found = True
+if not nonzero_found:
+    print("DEBUG: No non-zero precip found in first 500 obs (indices 12, 18, 19)")
+
 # --- Aggregate daily totals ---
 daily_totals = defaultdict(float)
 
