@@ -1,8 +1,8 @@
 """
 One-time backfill script.
 Fetches daily rainfall for the gap: 2025-10-03 through 2026-04-01
-and merges it into daily_rainfall.csv.
-Delete this file after the backfill workflow has run successfully.
+using the device observations endpoint (supports historical time ranges).
+Delete this file and backfill.yml after the workflow has run successfully.
 """
 
 import os
@@ -20,60 +20,82 @@ TIMEZONE           = 'America/Chicago'
 
 tz = pytz.timezone(TIMEZONE)
 
-# --- Hardcoded backfill range ---
+# --- Step 1: Get device ID from station metadata ---
+print("Fetching station metadata to get device ID...")
+stations_url = f'https://swd.weatherflow.com/swd/rest/stations/{TEMPEST_STATION_ID}?token={TEMPEST_API_TOKEN}'
+resp = requests.get(stations_url)
+resp.raise_for_status()
+station_data = resp.json()
+
+# Find the Tempest device (type=AR for Air+Sky combined, or type=ST for Tempest)
+device_id = None
+for station in station_data.get('stations', []):
+    for device in station.get('devices', []):
+        device_type = device.get('device_type', '')
+        if device_type in ('ST', 'AR'):  # ST = Tempest, AR = Air+Sky
+            device_id = device.get('device_id')
+            print(f"Found device: type={device_type} id={device_id}")
+            break
+    if device_id:
+        break
+
+if not device_id:
+    print("ERROR: Could not find a Tempest/Air device in station metadata.")
+    print("Station response:", station_data)
+    raise SystemExit(1)
+
+# --- Step 2: Fetch historical observations from device endpoint ---
 start_date = datetime(2025, 10, 3,  0,  0,  0, tzinfo=tz)
 end_date   = datetime(2026,  4, 1, 23, 59, 59, tzinfo=tz)
 
-print(f"Backfilling: {start_date.date()} → {end_date.date()}")
+print(f"Fetching device observations: {start_date.date()} → {end_date.date()}")
 
-# --- Fetch from WeatherFlow API ---
-url = (
-    f'https://swd.weatherflow.com/swd/rest/observations/station/{TEMPEST_STATION_ID}'
-    f'?token={TEMPEST_API_TOKEN}'
-    f'&start={int(start_date.timestamp())}'
-    f'&end={int(end_date.timestamp())}'
+obs_url = (
+    f'https://swd.weatherflow.com/swd/rest/observations/'
+    f'?device_id={device_id}'
+    f'&time_start={int(start_date.timestamp())}'
+    f'&time_end={int(end_date.timestamp())}'
+    f'&token={TEMPEST_API_TOKEN}'
 )
 
-resp = requests.get(url)
+resp = requests.get(obs_url)
 resp.raise_for_status()
-data = resp.json()
+obs_data_raw = resp.json()
 
-obs_data = data.get('observations') or data.get('obs') or []
+print(f"DEBUG response keys: {list(obs_data_raw.keys())}")
+
+obs_data = obs_data_raw.get('obs') or obs_data_raw.get('observations') or []
 print(f"Observations returned: {len(obs_data)}")
 
 if not obs_data:
-    print("WARNING: No observations returned. Check API token and station ID.")
+    print("ERROR: No observations returned from device endpoint.")
+    print("Full response:", obs_data_raw)
     raise SystemExit(1)
 
-# --- Debug: print first observation to verify field layout ---
+# --- Step 3: Inspect first observation to confirm field layout ---
 first_obs = obs_data[0]
 print(f"DEBUG first obs type: {type(first_obs).__name__}")
-print(f"DEBUG first obs: {first_obs}")
 if isinstance(first_obs, (list, tuple)):
     for i, val in enumerate(first_obs):
         print(f"  [{i}] = {val}")
+elif isinstance(first_obs, dict):
+    print(f"  keys: {list(first_obs.keys())}")
 
-# --- Debug: print any obs where index 12 or 18/19 is non-zero ---
-nonzero_found = False
-for obs in obs_data[:500]:
-    if isinstance(obs, (list, tuple)) and len(obs) > 19:
-        if (obs[12] and obs[12] > 0) or (obs[18] and obs[18] > 0) or (obs[19] and obs[19] > 0):
-            print(f"DEBUG non-zero precip obs: idx12={obs[12]} idx18={obs[18]} idx19={obs[19]} ts={obs[0]}")
-            nonzero_found = True
-if not nonzero_found:
-    print("DEBUG: No non-zero precip found in first 500 obs (indices 12, 18, 19)")
-
-# --- Aggregate daily totals ---
+# --- Step 4: Aggregate daily totals ---
+# Device endpoint returns array-format obs:
+#   [0]=timestamp, [12]=precip mm per interval
+# Station endpoint (dict) uses named fields — handled separately below
 daily_totals = defaultdict(float)
 
 for obs in obs_data:
-    if isinstance(obs, dict):
-        ts     = obs.get('timestamp')
-        precip = obs.get('precip_accum') or obs.get('precip', 0.0)
-    elif isinstance(obs, (list, tuple)):
-        ts         = obs[0] if len(obs) > 0 else None
-        precip_mm  = obs[12] if len(obs) > 12 and obs[12] is not None else 0.0
-        precip     = precip_mm / 25.4  # mm → inches
+    if isinstance(obs, (list, tuple)):
+        ts        = obs[0] if len(obs) > 0 else None
+        precip_mm = obs[12] if len(obs) > 12 and obs[12] is not None else 0.0
+        precip_in = precip_mm / 25.4
+    elif isinstance(obs, dict):
+        ts        = obs.get('timestamp')
+        precip_mm = obs.get('precip_accum_local_day_final') or obs.get('precip', 0.0)
+        precip_in = precip_mm / 25.4
     else:
         continue
 
@@ -81,16 +103,23 @@ for obs in obs_data:
         continue
 
     day_str = datetime.fromtimestamp(ts, tz).strftime('%Y-%m-%d')
-    daily_totals[day_str] += precip
+    daily_totals[day_str] += precip_in
 
-# Ensure every day in range exists (fill zeros for days with no obs)
+# Ensure every day in range is present (zero-fill gaps)
 current = start_date
 while current <= end_date:
     daily_totals.setdefault(current.strftime('%Y-%m-%d'), 0.0)
     current += timedelta(days=1)
 
-# --- Load existing CSV ---
+# Show any days with rain detected
+rain_days = {d: v for d, v in daily_totals.items() if v > 0}
+print(f"Rain days found: {len(rain_days)}")
+for d, v in sorted(rain_days.items()):
+    print(f"  {d}: {v:.4f} in")
+
+# --- Step 5: Load and merge CSV ---
 data_dict = {}
+header    = ['Date', 'Rainfall (inches)']
 try:
     with open(MASTER_CSV, newline='') as f:
         reader = csv.reader(f)
@@ -102,15 +131,14 @@ try:
                 except ValueError:
                     pass
 except FileNotFoundError:
-    header = ['Date', 'Rainfall (inches)']
+    pass
 
-# --- Merge ---
 added = updated = unchanged = 0
 for day_str, precip in daily_totals.items():
     if day_str not in data_dict:
         data_dict[day_str] = precip
         added += 1
-    elif data_dict[day_str] != precip:
+    elif round(data_dict[day_str], 4) != round(precip, 4):
         data_dict[day_str] = precip
         updated += 1
     else:
@@ -118,7 +146,6 @@ for day_str, precip in daily_totals.items():
 
 print(f"Days added: {added} | updated: {updated} | unchanged: {unchanged}")
 
-# --- Write updated CSV ---
 with open(MASTER_CSV, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(header)
