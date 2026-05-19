@@ -20,8 +20,9 @@ Set these in **Settings → Secrets and variables → Actions**:
 |---|---|
 | `TEMPEST_API_TOKEN` | WeatherFlow API token |
 | `TEMPEST_STATION_ID` | WeatherFlow station ID |
-| `SENDGRID_API_KEY` | SendGrid API key |
-| `REPORT_FROM_EMAIL` | Verified sender email address |
+| `SMTP_USERNAME` | Office 365 email address used to send |
+| `SMTP_PASSWORD` | Office 365 password (or app password) |
+| `REPORT_FROM_EMAIL` | Sender address shown in the email (usually same as `SMTP_USERNAME`) |
 | `REPORT_FROM_NAME` | Sender display name (e.g. `Tempest Weather Station`) |
 | `REPORT_RECIPIENTS` | Comma-separated list of recipient emails |
 

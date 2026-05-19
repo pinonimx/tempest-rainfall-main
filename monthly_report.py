@@ -1,17 +1,21 @@
 import os
 import csv
-import sendgrid
-from sendgrid.helpers.mail import Mail, To
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, date
 import calendar
 import pytz
 
 # --- Config ---
-SENDGRID_API_KEY = os.environ['SENDGRID_API_KEY']
-FROM_EMAIL       = os.environ.get('REPORT_FROM_EMAIL', 'reports@yourdomain.com')
-FROM_NAME        = os.environ.get('REPORT_FROM_NAME', 'Tempest Weather Station')
+SMTP_HOST    = 'smtp.office365.com'
+SMTP_PORT    = 587
+SMTP_USER    = os.environ['SMTP_USERNAME']       # O365 email address used to send
+SMTP_PASS    = os.environ['SMTP_PASSWORD']       # O365 password (or app password)
+FROM_EMAIL   = os.environ.get('REPORT_FROM_EMAIL', SMTP_USER)
+FROM_NAME    = os.environ.get('REPORT_FROM_NAME', 'Tempest Weather Station')
 # Comma-separated list of recipient emails
-RECIPIENTS       = [e.strip() for e in os.environ['REPORT_RECIPIENTS'].split(',') if e.strip()]
+RECIPIENTS   = [e.strip() for e in os.environ['REPORT_RECIPIENTS'].split(',') if e.strip()]
 MASTER_CSV       = 'daily_rainfall.csv'
 TIMEZONE         = 'America/Chicago'
 
@@ -138,22 +142,17 @@ html_body = f'''<!DOCTYPE html>
 </body>
 </html>'''
 
-# --- Send via SendGrid ---
-sg = sendgrid.SendGridAPIClient(api_key=SENDGRID_API_KEY)
+# --- Send via Office 365 SMTP ---
+msg = MIMEMultipart('alternative')
+msg['Subject'] = f'Rainfall Report — {month_label}'
+msg['From']    = f'{FROM_NAME} <{FROM_EMAIL}>'
+msg['To']      = ', '.join(RECIPIENTS)
+msg.attach(MIMEText(html_body, 'html'))
 
-to_list = [To(email=email) for email in RECIPIENTS]
-
-message = Mail(
-    from_email=(FROM_EMAIL, FROM_NAME),
-    subject=f'Rainfall Report — {month_label}',
-    html_content=html_body,
-)
-message.to = to_list
-
-response = sg.client.mail.send.post(request_body=message.get())
-print(f"SendGrid status: {response.status_code}")
-if response.status_code not in (200, 202):
-    print(f"SendGrid error body: {response.body}")
-    raise RuntimeError(f"SendGrid returned status {response.status_code}")
+with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+    server.ehlo()
+    server.starttls()
+    server.login(SMTP_USER, SMTP_PASS)
+    server.sendmail(FROM_EMAIL, RECIPIENTS, msg.as_string())
 
 print("Report sent successfully.")
