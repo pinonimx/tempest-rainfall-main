@@ -72,17 +72,17 @@ if not obs_data:
     print("Full response:", obs_data_raw)
     raise SystemExit(1)
 
-# --- Step 3: Inspect known rainy days from Excel (Oct 18, Oct 24, Oct 25) ---
-rainy_dates = {'2025-10-18', '2025-10-24', '2025-10-25'}
-print("DEBUG: Inspecting known rainy days:")
+# --- Step 3: Print FULL array for Oct 24 (known heavy rain day ~21mm) ---
+# and compare against Oct 4 (dry day) to identify precip field
+print("\nDEBUG: Full array comparison — dry day vs rainy day:")
+target_dates = {'2025-10-04', '2025-10-24', '2025-10-25'}
 for obs in obs_data:
     day = obs[0] if isinstance(obs, (list, tuple)) else obs.get('timestamp', '')
-    if day in rainy_dates:
-        print(f"\n  Date: {day}")
+    if day in target_dates:
+        print(f"\n  [{day}] full array:")
         if isinstance(obs, (list, tuple)):
             for i, val in enumerate(obs):
-                if val is not None and val != 0:
-                    print(f"    [{i}] = {val}  ← non-zero")
+                print(f"    [{i}] = {val}")
 
 # --- Step 4: Aggregate daily totals ---
 # Device endpoint returns array-format obs:
