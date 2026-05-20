@@ -102,7 +102,12 @@ for obs in obs_data:
     if ts is None:
         continue
 
-    day_str = datetime.fromtimestamp(ts, tz).strftime('%Y-%m-%d')
+    # Daily bucket obs return a date string at [0] (e.g. '2025-10-04'),
+    # not a Unix timestamp — handle both formats
+    if isinstance(ts, str):
+        day_str = ts  # already 'YYYY-MM-DD'
+    else:
+        day_str = datetime.fromtimestamp(ts, tz).strftime('%Y-%m-%d')
     daily_totals[day_str] += precip_in
 
 # Ensure every day in range is present (zero-fill gaps)
