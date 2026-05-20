@@ -72,14 +72,17 @@ if not obs_data:
     print("Full response:", obs_data_raw)
     raise SystemExit(1)
 
-# --- Step 3: Inspect first observation to confirm field layout ---
-first_obs = obs_data[0]
-print(f"DEBUG first obs type: {type(first_obs).__name__}")
-if isinstance(first_obs, (list, tuple)):
-    for i, val in enumerate(first_obs):
-        print(f"  [{i}] = {val}")
-elif isinstance(first_obs, dict):
-    print(f"  keys: {list(first_obs.keys())}")
+# --- Step 3: Inspect known rainy days from Excel (Oct 18, Oct 24, Oct 25) ---
+rainy_dates = {'2025-10-18', '2025-10-24', '2025-10-25'}
+print("DEBUG: Inspecting known rainy days:")
+for obs in obs_data:
+    day = obs[0] if isinstance(obs, (list, tuple)) else obs.get('timestamp', '')
+    if day in rainy_dates:
+        print(f"\n  Date: {day}")
+        if isinstance(obs, (list, tuple)):
+            for i, val in enumerate(obs):
+                if val is not None and val != 0:
+                    print(f"    [{i}] = {val}  ← non-zero")
 
 # --- Step 4: Aggregate daily totals ---
 # Device endpoint returns array-format obs:
