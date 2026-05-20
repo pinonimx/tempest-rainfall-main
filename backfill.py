@@ -72,17 +72,6 @@ if not obs_data:
     print("Full response:", obs_data_raw)
     raise SystemExit(1)
 
-# --- Step 3: Print FULL array for Oct 24 (known heavy rain day ~21mm) ---
-# and compare against Oct 4 (dry day) to identify precip field
-print("\nDEBUG: Full array comparison — dry day vs rainy day:")
-target_dates = {'2025-10-04', '2025-10-24', '2025-10-25'}
-for obs in obs_data:
-    day = obs[0] if isinstance(obs, (list, tuple)) else obs.get('timestamp', '')
-    if day in target_dates:
-        print(f"\n  [{day}] full array:")
-        if isinstance(obs, (list, tuple)):
-            for i, val in enumerate(obs):
-                print(f"    [{i}] = {val}")
 
 # --- Step 4: Aggregate daily totals ---
 # Device endpoint returns array-format obs:
@@ -92,8 +81,9 @@ daily_totals = defaultdict(float)
 
 for obs in obs_data:
     if isinstance(obs, (list, tuple)):
-        ts        = obs[0] if len(obs) > 0 else None
-        precip_mm = obs[12] if len(obs) > 12 and obs[12] is not None else 0.0
+        ts = obs[0] if len(obs) > 0 else None
+        # [29] = precip_accum_local_day_final (QC-corrected daily total in mm)
+        precip_mm = obs[29] if len(obs) > 29 and obs[29] is not None else 0.0
         precip_in = precip_mm / 25.4
     elif isinstance(obs, dict):
         ts        = obs.get('timestamp')
@@ -105,10 +95,9 @@ for obs in obs_data:
     if ts is None:
         continue
 
-    # Daily bucket obs return a date string at [0] (e.g. '2025-10-04'),
-    # not a Unix timestamp — handle both formats
+    # Daily bucket obs return a date string at [0] (e.g. '2025-10-04')
     if isinstance(ts, str):
-        day_str = ts  # already 'YYYY-MM-DD'
+        day_str = ts
     else:
         day_str = datetime.fromtimestamp(ts, tz).strftime('%Y-%m-%d')
     daily_totals[day_str] += precip_in
