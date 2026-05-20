@@ -34,4 +34,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add daily_rainfall.csv
           git diff --cached --quiet || git commit -m "chore: backfill rainfall data 2025-10-03 to 2026-04-01"
+          git pull --rebase origin main
           git push
