@@ -20,9 +20,8 @@ Set these in **Settings → Secrets and variables → Actions**:
 |---|---|
 | `TEMPEST_API_TOKEN` | WeatherFlow API token |
 | `TEMPEST_STATION_ID` | WeatherFlow station ID |
-| `SMTP_USERNAME` | Office 365 email address used to send |
-| `SMTP_PASSWORD` | Office 365 password (or app password) |
-| `REPORT_FROM_EMAIL` | Sender address shown in the email (usually same as `SMTP_USERNAME`) |
+| `RESEND_API_KEY` | Resend API key (resend.com) |
+| `REPORT_FROM_EMAIL` | Verified sender address in Resend (e.g. `reports@yourdomain.com`) |
 | `REPORT_FROM_NAME` | Sender display name (e.g. `Tempest Weather Station`) |
 | `REPORT_RECIPIENTS` | Comma-separated list of recipient emails |
 

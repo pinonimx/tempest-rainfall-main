@@ -8,14 +8,14 @@ import calendar
 import pytz
 
 # --- Config ---
-SMTP_HOST    = 'smtp.office365.com'
-SMTP_PORT    = 587
-SMTP_USER    = os.environ['SMTP_USERNAME']       # O365 email address used to send
-SMTP_PASS    = os.environ['SMTP_PASSWORD']       # O365 password (or app password)
-FROM_EMAIL   = os.environ.get('REPORT_FROM_EMAIL', SMTP_USER)
-FROM_NAME    = os.environ.get('REPORT_FROM_NAME', 'Tempest Weather Station')
+SMTP_HOST  = 'smtp.gmail.com'
+SMTP_PORT  = 587
+SMTP_USER  = os.environ['SMTP_USERNAME']
+SMTP_PASS  = os.environ['SMTP_PASSWORD']
+FROM_EMAIL = os.environ.get('REPORT_FROM_EMAIL', SMTP_USER)
+FROM_NAME  = os.environ.get('REPORT_FROM_NAME', 'Tempest Weather Station')
 # Comma-separated list of recipient emails
-RECIPIENTS   = [e.strip() for e in os.environ['REPORT_RECIPIENTS'].split(',') if e.strip()]
+RECIPIENTS = [e.strip() for e in os.environ['REPORT_RECIPIENTS'].split(',') if e.strip()]
 MASTER_CSV       = 'daily_rainfall.csv'
 TIMEZONE         = 'America/Chicago'
 
@@ -142,7 +142,7 @@ html_body = f'''<!DOCTYPE html>
 </body>
 </html>'''
 
-# --- Send via Office 365 SMTP ---
+# --- Send via Gmail SMTP ---
 msg = MIMEMultipart('alternative')
 msg['Subject'] = f'Rainfall Report — {month_label}'
 msg['From']    = f'{FROM_NAME} <{FROM_EMAIL}>'
