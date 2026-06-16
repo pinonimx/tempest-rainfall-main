@@ -2,10 +2,11 @@ name: Monthly Rainfall Report
 
 on:
   schedule:
-    # Runs on every Monday that falls on the 1st–7th of the month
-    # = first Monday of the month, 07:00 AM Central (UTC 12:00 / 13:00 depending on DST)
-    # Using 12:00 UTC covers both CDT (UTC-5) and CST (UTC-6): lands at 7 AM or 6 AM
-    - cron: '0 12 1-7 * 1'
+    # Runs every Monday at 07:00 AM Central (12:00 UTC).
+    # A day-of-month guard below ensures only the first Monday fires.
+    # NOTE: combining day-of-month AND day-of-week in cron is OR, not AND,
+    # so we use day-of-week only here and guard with a shell check instead.
+    - cron: '0 12 * * 1'
   workflow_dispatch: # Allow manual trigger for testing
 
 jobs:
@@ -13,20 +14,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check if this is the first Monday of the month
+        id: guard
+        run: |
+          DAY=$(date +%d)
+          if [ "$DAY" -gt 7 ]; then
+            echo "Day $DAY is not in week 1 — skipping report."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Day $DAY is in week 1 — proceeding."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repo
+        if: steps.guard.outputs.skip == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.guard.outputs.skip == 'false'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
+        if: steps.guard.outputs.skip == 'false'
         run: |
           python -m pip install --upgrade pip
           pip install pytz reportlab
 
       - name: Send monthly rainfall report
+        if: steps.guard.outputs.skip == 'false'
         env:
           SMTP_USERNAME:      ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD:      ${{ secrets.SMTP_PASSWORD }}
